@@ -29,6 +29,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          java-package: 'jdk'
 
       - name: Install Node.js
         uses: actions/setup-node@v3
@@ -41,13 +42,18 @@ jobs:
           cd repos/axios
           npm install
       
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
       - name: Install SonarScanner
-        env:
-          SONAR_SCANNER_VERSION: 4.8.0.2856
         run: |
-          wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
-          unzip sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
-          echo "$GITHUB_WORKSPACE/sonar-scanner-$SONAR_SCANNER_VERSION-linux/bin" >> $GITHUB_PATH
+          curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.1.3023-linux.zip
+          unzip -o sonar-scanner.zip
+          echo "${PWD}/sonar-scanner-4.8.1.3023-linux/bin" >> $GITHUB_PATH
       
       - name: Run analysis and tests
         env:
