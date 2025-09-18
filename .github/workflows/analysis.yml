@@ -5,7 +5,8 @@ on:
 
 env:
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  SONAR_URL: ${{ secrets.SONAR_URL || 'http://localhost:9000' }}
+  SONAR_URL: 'https://sonarcloud.io'
+  SONAR_ORGANIZATION: 'drumondgit'
 
 jobs:
   analyze-repositories:
@@ -23,21 +24,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas requests
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
           node-version: '18'
+
+      - name: Clone Axios Repository
+        run: |
+          git clone https://github.com/axios/axios.git repos/axios
+          cd repos/axios
+          npm install
       
       - name: Install SonarScanner
+        env:
+          SONAR_SCANNER_VERSION: 4.8.0.2856
         run: |
-          wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
-          unzip sonar-scanner-cli-4.8.0.2856-linux.zip
-          echo "$GITHUB_WORKSPACE/sonar-scanner-4.8.0.2856-linux/bin" >> $GITHUB_PATH
+          wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
+          unzip sonar-scanner-cli-$SONAR_SCANNER_VERSION-linux.zip
+          echo "$GITHUB_WORKSPACE/sonar-scanner-$SONAR_SCANNER_VERSION-linux/bin" >> $GITHUB_PATH
       
       - name: Run analysis and tests
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_URL: ${{ secrets.SONAR_URL }}
+          SONAR_URL: 'https://sonarcloud.io'
+          SONAR_ORGANIZATION: 'drumondgit'
         run: |
           python src/main.py
       

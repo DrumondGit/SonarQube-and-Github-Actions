@@ -62,12 +62,19 @@ def analyze_repo(repo_path, repo_name):
     SONAR_TOKEN = os.environ.get('SONAR_TOKEN')
     SONAR_URL = os.environ.get('SONAR_URL', 'http://localhost:9000')
     project_key = f"{repo_name}".replace('/', '_')
+    organization = os.environ.get('SONAR_ORGANIZATION', 'drumondgit')
+    
     cmd = [
         "sonar-scanner",
         f"-Dsonar.projectKey={project_key}",
+        f"-Dsonar.organization={organization}",
         f"-Dsonar.sources=.",
         f"-Dsonar.host.url={SONAR_URL}",
-        f"-Dsonar.login={SONAR_TOKEN}"
+        f"-Dsonar.login={SONAR_TOKEN}",
+        "-Dsonar.java.binaries=.",
+        "-Dsonar.sourceEncoding=UTF-8",
+        "-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info",
+        "-Dsonar.verbose=true"
     ]
     try:
         result = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True)
