@@ -56,6 +56,11 @@ jobs:
           echo "SonarScanner version:"
           sonar-scanner --version
       
+      - name: Run npm test with coverage
+        run: |
+          cd repos/axios
+          npm test -- --coverage
+      
       - name: Run analysis and tests
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
