@@ -57,6 +57,13 @@ jobs:
           export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
           export PATH=$JAVA_HOME/bin:$PATH
       
+      - name: Ensure Java 17 is used
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME"
+          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+          export PATH=$JAVA_HOME/bin:$PATH
+          java -version
+      
       - name: Run analysis and tests
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
