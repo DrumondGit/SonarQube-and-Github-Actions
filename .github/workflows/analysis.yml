@@ -29,12 +29,14 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'maven'
+          cache: 'none'  # Desabilita cache Maven
 
       - name: Install Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'   # Habilita cache npm para o projeto axios
+          cache-dependency-path: 'repos/axios/package-lock.json'
 
       - name: Clone Axios Repository
         run: |
