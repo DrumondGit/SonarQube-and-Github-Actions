@@ -10,7 +10,7 @@ def get_sonar_metrics(project_key):
     SONAR_TOKEN = os.environ.get('SONAR_TOKEN')
     
     # Espera um pouco para garantir que a análise foi processada
-    time.sleep(10)
+    time.sleep(15)  # Aumente o tempo se necessário
     
     metrics = [
         'bugs', 'code_smells', 'vulnerabilities', 'coverage',
@@ -30,10 +30,15 @@ def get_sonar_metrics(project_key):
         response = requests.get(url, params=params, headers=headers)
         if response.status_code == 200:
             data = response.json()
-            return {measure['metric']: measure['value'] 
-                   for measure in data['component']['measures']}
+            if 'component' in data and 'measures' in data['component']:
+                return {measure['metric']: measure['value'] 
+                       for measure in data['component']['measures']}
+            else:
+                print(f"Estrutura de resposta inesperada: {data}")
+                return {}
         else:
             print(f"Erro ao buscar métricas: {response.status_code}")
+            print(f"Resposta: {response.text}")
             return {}
     except Exception as e:
         print(f"Erro ao buscar métricas do SonarQube: {e}")

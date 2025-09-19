@@ -29,7 +29,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          java-package: 'jdk'
+          cache: 'maven'
 
       - name: Install Node.js
         uses: actions/setup-node@v3
@@ -51,18 +51,18 @@ jobs:
 
       - name: Install SonarScanner
         run: |
-          curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.1.3023-linux.zip
+          # Usar versão mais recente compatível com Java 17
+          curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
           unzip -o sonar-scanner.zip
-          echo "${PWD}/sonar-scanner-4.8.1.3023-linux/bin" >> $GITHUB_PATH
-          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
-          export PATH=$JAVA_HOME/bin:$PATH
+          echo "${PWD}/sonar-scanner-5.0.1.3006-linux/bin" >> $GITHUB_PATH
       
       - name: Ensure Java 17 is used
         run: |
-          echo "JAVA_HOME=$JAVA_HOME"
-          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
-          export PATH=$JAVA_HOME/bin:$PATH
+          echo "JAVA_HOME: $JAVA_HOME"
+          echo "PATH: $PATH"
+          which java
           java -version
+          javac -version
       
       - name: Run analysis and tests
         env:
