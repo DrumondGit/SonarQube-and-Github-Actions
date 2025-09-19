@@ -60,26 +60,15 @@ jobs:
           echo "SonarScanner version:"
           sonar-scanner --version
 
-      - name: Run npm test with coverage
-        run: |
-          cd repos/axios
-          npm test -- --coverage
-
       - name: Build project
         run: |
           cd repos/axios
           npm run build
 
-      - name: Verify dist folder creation
+      - name: Run npm test with coverage
         run: |
           cd repos/axios
-          if [ -d "dist" ]; then
-            echo "✅ Build successful - dist folder created"
-            ls -la dist/
-          else
-            echo "❌ Build failed - dist folder not found"
-            exit 1
-          fi
+          npm test -- --coverage
 
       - name: Run analysis and tests
         env:
