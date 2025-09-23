@@ -3,6 +3,8 @@ import pandas as pd
 import subprocess
 import requests
 import time
+import json
+
 
 def get_sonar_metrics(project_key):
     """Coleta métricas do SonarQube via API."""
