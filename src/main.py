@@ -10,7 +10,7 @@ def get_sonar_metrics(project_key):
     SONAR_TOKEN = os.environ.get('SONAR_TOKEN')
     
     # Espera um pouco para garantir que a análise foi processada
-    time.sleep(15)  # Aumente o tempo se necessário
+    time.sleep(15)
     
     metrics = [
         'bugs', 'code_smells', 'vulnerabilities', 'coverage',
@@ -38,13 +38,12 @@ def get_sonar_metrics(project_key):
                 return {}
         else:
             print(f"Erro ao buscar métricas: {response.status_code}")
-            print(f"Resposta: {response.text}")
             return {}
     except Exception as e:
         print(f"Erro ao buscar métricas do SonarQube: {e}")
         return {}
 
-def get_npm_test_metrics(test_output):
+def get_npm_test_metrics(repo_path):
     """Extrai métricas dos testes npm."""
     metrics = {
         'test_passed': 0,
@@ -53,72 +52,33 @@ def get_npm_test_metrics(test_output):
     }
     
     try:
-        # Procura por padrões comuns de relatório de cobertura
-        lines = test_output.split('\n')
-        
-        for line in lines:
-            # Procura por padrões de cobertura (exemplos comuns)
-            if 'Coverage:' in line and '%' in line:
-                # Exemplo: "Coverage: 85.5%"
-                parts = line.split()
-                for part in parts:
-                    if '%' in part:
-                        coverage_str = part.replace('%', '')
-                        try:
-                            metrics['test_coverage'] = float(coverage_str)
-                            break
-                        except ValueError:
-                            continue
-            
-            # Procura por estatísticas de testes
-            elif 'passing' in line.lower() and 'failing' in line.lower():
-                # Exemplo: "10 passing, 2 failing"
-                import re
-                passing_match = re.search(r'(\d+)\s+passing', line)
-                failing_match = re.search(r'(\d+)\s+failing', line)
+        # Tenta ler do arquivo de cobertura se existir
+        lcov_file = os.path.join(repo_path, 'coverage', 'lcov.info')
+        if os.path.exists(lcov_file):
+            with open(lcov_file, 'r') as f:
+                lcov_content = f.read()
+                # Calcula cobertura baseada no LCOV
+                lines_found = 0
+                lines_hit = 0
                 
-                if passing_match:
-                    metrics['test_passed'] = int(passing_match.group(1))
-                if failing_match:
-                    metrics['test_failed'] = int(failing_match.group(1))
-            
-            # Padrão do Jest/Mocha com cobertura
-            elif 'All files' in line and '|' in line:
-                # Exemplo: "All files | 85.71 | 100 | 80 | 85.71 |"
-                parts = line.split('|')
-                if len(parts) > 2:
-                    try:
-                        metrics['test_coverage'] = float(parts[1].strip())
-                        break
-                    except ValueError:
-                        continue
+                for line in lcov_content.split('\n'):
+                    if line.startswith('LF:'):
+                        lines_found = int(line.split(':')[1])
+                    elif line.startswith('LH:'):
+                        lines_hit = int(line.split(':')[1])
+                
+                if lines_found > 0:
+                    metrics['test_coverage'] = round((lines_hit / lines_found) * 100, 2)
         
-        # Se não encontrou cobertura no output, tenta ler do arquivo lcov
-        if metrics['test_coverage'] == 0:
-            coverage_file = os.path.join('repos/axios', 'coverage', 'coverage-summary.json')
-            if os.path.exists(coverage_file):
-                import json
-                with open(coverage_file, 'r') as f:
-                    coverage_data = json.load(f)
-                    if 'total' in coverage_data and 'lines' in coverage_data['total']:
-                        metrics['test_coverage'] = coverage_data['total']['lines']['pct']
-            
-            # Tenta ler do arquivo lcov.info
-            lcov_file = os.path.join('repos/axios', 'coverage', 'lcov.info')
-            if os.path.exists(lcov_file) and metrics['test_coverage'] == 0:
-                with open(lcov_file, 'r') as f:
-                    lcov_content = f.read()
-                    if 'LF:' in lcov_content and 'LH:' in lcov_content:
-                        import re
-                        lf_match = re.search(r'LF:(\d+)', lcov_content)
-                        lh_match = re.search(r'LH:(\d+)', lcov_content)
-                        if lf_match and lh_match:
-                            lf = int(lf_match.group(1))
-                            lh = int(lh_match.group(1))
-                            if lf > 0:
-                                metrics['test_coverage'] = round((lh / lf) * 100, 2)
+        # Tenta extrair estatísticas de testes do console
+        package_file = os.path.join(repo_path, 'package.json')
+        if os.path.exists(package_file):
+            with open(package_file, 'r') as f:
+                package_data = json.load(f)
+                scripts = package_data.get('scripts', {})
+                print(f"Scripts disponíveis: {list(scripts.keys())}")
         
-        print(f"Métricas extraídas: {metrics}")
+        print(f"Métricas de teste extraídas: {metrics}")
         
     except Exception as e:
         print(f"Erro ao extrair métricas de teste: {e}")
@@ -132,20 +92,27 @@ def analyze_repo(repo_path, repo_name):
     project_key = f"{repo_name}".replace('/', '_')
     organization = os.environ.get('SONAR_ORGANIZATION', 'drumondgit')
     
-    cmd = [
+    # Verifica se existe arquivo de cobertura
+    lcov_path = os.path.join(repo_path, 'coverage', 'lcov.info')
+    sonar_properties = [
         "sonar-scanner",
         f"-Dsonar.projectKey={project_key}",
         f"-Dsonar.organization={organization}",
         f"-Dsonar.sources=.",
         f"-Dsonar.host.url={SONAR_URL}",
         f"-Dsonar.login={SONAR_TOKEN}",
-        "-Dsonar.java.binaries=.",
         "-Dsonar.sourceEncoding=UTF-8",
-        "-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info",
         "-Dsonar.verbose=true"
     ]
+    
+    if os.path.exists(lcov_path):
+        sonar_properties.append(f"-Dsonar.javascript.lcov.reportPaths={lcov_path}")
+        print(f"Usando arquivo de cobertura: {lcov_path}")
+    else:
+        print("Arquivo de cobertura não encontrado, análise sem dados de cobertura")
+    
     try:
-        result = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True)
+        result = subprocess.run(sonar_properties, cwd=repo_path, capture_output=True, text=True)
         print(result.stdout)
         if result.returncode != 0:
             print(f"Erro ao analisar {repo_name}: {result.stderr}")
@@ -158,6 +125,29 @@ def analyze_repo(repo_path, repo_name):
         return None
 
 REPOS_DIR = 'repos'
+
+def run_npm_test(repo_path):
+    print(f"Executando npm test em: {repo_path}")
+    try:
+        # Primeiro verifica quais scripts estão disponíveis
+        result_scripts = subprocess.run(["npm", "run"], cwd=repo_path, capture_output=True, text=True)
+        print("Scripts disponíveis:")
+        print(result_scripts.stdout)
+        
+        # Tenta executar o teste padrão
+        result = subprocess.run(["npm", "test"], cwd=repo_path, capture_output=True, text=True)
+        print("Output do npm test:")
+        print(result.stdout[:1000] + "..." if len(result.stdout) > 1000 else result.stdout)
+        
+        if result.returncode != 0:
+            print(f"Aviso: npm test retornou código {result.returncode}")
+            print(f"Stderr: {result.stderr}")
+        
+        return result.stdout
+        
+    except Exception as e:
+        print(f"Falha ao executar npm test: {e}")
+        return None
 
 def run_npm_test(repo_path):
     print(f"Executando npm test em: {repo_path}")
@@ -203,6 +193,7 @@ def main():
     if not os.path.exists(REPOS_DIR):
         print(f"Diretório '{REPOS_DIR}' não encontrado.")
         return
+        
     repos = [d for d in os.listdir(REPOS_DIR) if os.path.isdir(os.path.join(REPOS_DIR, d))]
     if not repos:
         print("Nenhum repositório encontrado na pasta 'repos'.")
@@ -212,24 +203,16 @@ def main():
     for repo in repos:
         repo_path = os.path.join(REPOS_DIR, repo)
         
-        # Verifica arquivos de cobertura antes de executar testes
-        print(f"Verificando cobertura em: {repo_path}")
-        check_coverage_files(repo_path)
-        
-        # Executa npm test e coleta métricas PRIMEIRO
+        # Executa npm test primeiro
         test_output = run_npm_test(repo_path)
-        
-        # Verifica novamente após executar testes
-        check_coverage_files(repo_path)
         
         result = {"repo": repo}
         
         # Extrai métricas do npm test
-        if test_output:
-            npm_metrics = get_npm_test_metrics(test_output)
-            result.update(npm_metrics)
+        npm_metrics = get_npm_test_metrics(repo_path)
+        result.update(npm_metrics)
         
-        # Executa análise SonarQube e obtém o project_key
+        # Executa análise SonarQube
         project_key = analyze_repo(repo_path, repo)
         
         if project_key:
@@ -239,7 +222,22 @@ def main():
         
         sonar_results.append(result)
 
-    # Resto do código permanece igual...
+    # Gera artefato CSV
+    df = pd.DataFrame(sonar_results)
+    
+    # Reordena as colunas
+    columns_order = ['repo', 'bugs', 'vulnerabilities', 'code_smells', 
+                    'coverage', 'test_coverage', 'ncloc', 'complexity',
+                    'duplicated_lines_density', 'security_hotspots',
+                    'reliability_rating', 'security_rating', 'sqale_rating',
+                    'test_success_density', 'test_passed', 'test_failed']
+    
+    existing_columns = [col for col in columns_order if col in df.columns]
+    df = df[existing_columns]
+    
+    df.to_csv("sonar_analysis_results.csv", index=False)
+    print("Artefato CSV gerado: sonar_analysis_results.csv")
+    print(df)
 
 if __name__ == "__main__":
     main()
