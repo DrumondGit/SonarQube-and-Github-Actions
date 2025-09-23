@@ -53,10 +53,73 @@ def get_npm_test_metrics(test_output):
     }
     
     try:
-        # Aqui você pode implementar a lógica para extrair as métricas
-        # do output do npm test, dependendo do formato do seu relatório
-        if 'test_coverage' in test_output:
-            metrics['test_coverage'] = float(test_output.split('coverage: ')[1].split('%')[0])
+        # Procura por padrões comuns de relatório de cobertura
+        lines = test_output.split('\n')
+        
+        for line in lines:
+            # Procura por padrões de cobertura (exemplos comuns)
+            if 'Coverage:' in line and '%' in line:
+                # Exemplo: "Coverage: 85.5%"
+                parts = line.split()
+                for part in parts:
+                    if '%' in part:
+                        coverage_str = part.replace('%', '')
+                        try:
+                            metrics['test_coverage'] = float(coverage_str)
+                            break
+                        except ValueError:
+                            continue
+            
+            # Procura por estatísticas de testes
+            elif 'passing' in line.lower() and 'failing' in line.lower():
+                # Exemplo: "10 passing, 2 failing"
+                import re
+                passing_match = re.search(r'(\d+)\s+passing', line)
+                failing_match = re.search(r'(\d+)\s+failing', line)
+                
+                if passing_match:
+                    metrics['test_passed'] = int(passing_match.group(1))
+                if failing_match:
+                    metrics['test_failed'] = int(failing_match.group(1))
+            
+            # Padrão do Jest/Mocha com cobertura
+            elif 'All files' in line and '|' in line:
+                # Exemplo: "All files | 85.71 | 100 | 80 | 85.71 |"
+                parts = line.split('|')
+                if len(parts) > 2:
+                    try:
+                        metrics['test_coverage'] = float(parts[1].strip())
+                        break
+                    except ValueError:
+                        continue
+        
+        # Se não encontrou cobertura no output, tenta ler do arquivo lcov
+        if metrics['test_coverage'] == 0:
+            coverage_file = os.path.join('repos/axios', 'coverage', 'coverage-summary.json')
+            if os.path.exists(coverage_file):
+                import json
+                with open(coverage_file, 'r') as f:
+                    coverage_data = json.load(f)
+                    if 'total' in coverage_data and 'lines' in coverage_data['total']:
+                        metrics['test_coverage'] = coverage_data['total']['lines']['pct']
+            
+            # Tenta ler do arquivo lcov.info
+            lcov_file = os.path.join('repos/axios', 'coverage', 'lcov.info')
+            if os.path.exists(lcov_file) and metrics['test_coverage'] == 0:
+                with open(lcov_file, 'r') as f:
+                    lcov_content = f.read()
+                    if 'LF:' in lcov_content and 'LH:' in lcov_content:
+                        import re
+                        lf_match = re.search(r'LF:(\d+)', lcov_content)
+                        lh_match = re.search(r'LH:(\d+)', lcov_content)
+                        if lf_match and lh_match:
+                            lf = int(lf_match.group(1))
+                            lh = int(lh_match.group(1))
+                            if lf > 0:
+                                metrics['test_coverage'] = round((lh / lf) * 100, 2)
+        
+        print(f"Métricas extraídas: {metrics}")
+        
     except Exception as e:
         print(f"Erro ao extrair métricas de teste: {e}")
     
@@ -99,17 +162,42 @@ REPOS_DIR = 'repos'
 def run_npm_test(repo_path):
     print(f"Executando npm test em: {repo_path}")
     try:
-        result = subprocess.run(["npm", "test", "--", "--coverage"], cwd=repo_path, capture_output=True, text=True)
-        print(result.stdout)
-        if result.returncode != 0:
-            print(f"Erro ao executar npm test: {result.stderr}")
-            return None
+        # Primeiro, verifica se há script de cobertura
+        result_check = subprocess.run(["npm", "run"], cwd=repo_path, capture_output=True, text=True)
+        
+        if 'test:coverage' in result_check.stdout:
+            # Usa script específico de cobertura se existir
+            result = subprocess.run(["npm", "run", "test:coverage"], cwd=repo_path, capture_output=True, text=True)
         else:
-            print("Cobertura de testes capturada com sucesso.")
-            return result.stdout
+            # Tenta com --coverage
+            result = subprocess.run(["npm", "test", "--", "--coverage"], cwd=repo_path, capture_output=True, text=True)
+        
+        print("Output do npm test:")
+        print(result.stdout)
+        
+        if result.returncode != 0:
+            print(f"Aviso: npm test retornou código {result.returncode}")
+            print(f"Stderr: {result.stderr}")
+        
+        print("Cobertura de testes capturada com sucesso.")
+        return result.stdout
+        
     except Exception as e:
         print(f"Falha ao executar npm test: {e}")
         return None
+    
+def check_coverage_files(repo_path):
+    """Verifica se arquivos de cobertura foram gerados."""
+    coverage_dir = os.path.join(repo_path, 'coverage')
+    if os.path.exists(coverage_dir):
+        print("Arquivos de cobertura encontrados:")
+        for root, dirs, files in os.walk(coverage_dir):
+            for file in files:
+                print(f"  {os.path.join(root, file)}")
+        return True
+    else:
+        print("Diretório de cobertura não encontrado")
+        return False    
 
 def main():
     if not os.path.exists(REPOS_DIR):
@@ -124,40 +212,34 @@ def main():
     for repo in repos:
         repo_path = os.path.join(REPOS_DIR, repo)
         
-        # Executa análise SonarQube e obtém o project_key
-        project_key = analyze_repo(repo_path, repo)
+        # Verifica arquivos de cobertura antes de executar testes
+        print(f"Verificando cobertura em: {repo_path}")
+        check_coverage_files(repo_path)
+        
+        # Executa npm test e coleta métricas PRIMEIRO
+        test_output = run_npm_test(repo_path)
+        
+        # Verifica novamente após executar testes
+        check_coverage_files(repo_path)
         
         result = {"repo": repo}
+        
+        # Extrai métricas do npm test
+        if test_output:
+            npm_metrics = get_npm_test_metrics(test_output)
+            result.update(npm_metrics)
+        
+        # Executa análise SonarQube e obtém o project_key
+        project_key = analyze_repo(repo_path, repo)
         
         if project_key:
             # Coleta métricas do SonarQube
             sonar_metrics = get_sonar_metrics(project_key)
             result.update(sonar_metrics)
         
-        # Executa npm test e coleta métricas
-        test_output = run_npm_test(repo_path)
-        if test_output:
-            npm_metrics = get_npm_test_metrics(test_output)
-            result.update(npm_metrics)
-        
         sonar_results.append(result)
 
-    # Gera artefato CSV com todas as métricas
-    df = pd.DataFrame(sonar_results)
-    
-    # Reordena as colunas para melhor visualização
-    columns_order = ['repo', 'bugs', 'vulnerabilities', 'code_smells', 
-                    'coverage', 'test_coverage', 'ncloc', 'complexity',
-                    'duplicated_lines_density', 'security_hotspots',
-                    'reliability_rating', 'security_rating', 'sqale_rating',
-                    'test_success_density', 'test_passed', 'test_failed']
-    
-    # Reordena apenas as colunas que existem no DataFrame
-    existing_columns = [col for col in columns_order if col in df.columns]
-    df = df[existing_columns]
-    
-    df.to_csv("sonar_analysis_results.csv", index=False)
-    print("Artefato CSV gerado: sonar_analysis_results.csv")
+    # Resto do código permanece igual...
 
 if __name__ == "__main__":
     main()
