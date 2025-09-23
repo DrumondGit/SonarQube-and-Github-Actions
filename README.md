@@ -1,7 +1,7 @@
 # KT - SonarQube com GitHub Actions
 
 ## 📋 Visão Geral
-Este documento descreve o processo completo para configurar e utilizar o SonarQube Cloud integrado com GitHub Actions para análise estática de código.
+Este documento descreve o processo completo para configurar e utilizar o SonarQube Cloud integrado com GitHub Actions para análise de código.
 
 ## 🚀 Pré-requisitos
 
@@ -24,8 +24,8 @@ Este documento descreve o processo completo para configurar e utilizar o SonarQu
 ### 1.3 Obter Sonar Organization
 1. Após criar a organização, anote o nome da organização
 2. Ele estará na URL: `https://sonarcloud.io/projects?organization=**nome-da-organizacao**`
-3. **Exemplo:** Se a URL é `https://sonarcloud.io/projects?organization=drumondgit`, então:
-   - `SONAR_ORGANIZATION = drumondgit`
+3. **Exemplo:** Se a URL é `https://sonarcloud.io/projects?organization=seuNomeGithub`, então:
+   - `SONAR_ORGANIZATION = seuNomeGithub`
 
 ## 🔐 Passo 2: Gerar Token do SonarCloud
 
@@ -55,8 +55,6 @@ Clique em **"New repository secret"** e adicione:
 - **Value:** O nome da sua organização (obtido no Passo 1.3)
 
 ## 📁 Passo 4: Estrutura do Projeto
-
-Seu repositório deve ter a seguinte estrutura:
 
 ```
 seu-repositorio/
@@ -180,22 +178,6 @@ O sistema coleta automaticamente:
 - **🔒 Security Hotspots** - Pontos quentes de segurança
 - **📝 Lines of Code** - Total de linhas de código
 
-## 🛠️ Solução de Problemas Comuns
-
-### Erro: "Invalid token"
-- Verifique se o token foi copiado corretamente
-- Gere um novo token se necessário
-
-### Erro: "Organization not found"
-- Confirme o nome exato da organização
-- Verifique permissões na organização
-
-### Erro: Java version mismatch
-- A pipeline já configura Java 17 automaticamente
-
-### Pipeline não executa
-- Verifique se o arquivo YAML está no caminho correto
-- Confirme que as secrets estão configuradas
 
 ## 🔗 Links Úteis
 
