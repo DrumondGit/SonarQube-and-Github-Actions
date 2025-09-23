@@ -36,9 +36,9 @@ jobs:
           echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
 
       - name: Install Node.js
-        run: |
-          curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-          sudo apt-get install -y nodejs
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
       - name: Clone Axios Repository
         run: |
@@ -46,58 +46,38 @@ jobs:
           cd repos/axios
           npm install
 
+      - name: Build Axios project
+        run: |
+          cd repos/axios
+          npm run build
+
       - name: Install SonarScanner
         run: |
           curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
           unzip -o sonar-scanner.zip
           echo "${PWD}/sonar-scanner-5.0.1.3006-linux/bin" >> $GITHUB_PATH
 
-      - name: Verify Java and SonarScanner
+      - name: Verify environment
         run: |
           echo "Java version:"
           java -version
-          echo "JAVA_HOME: $JAVA_HOME"
-          echo "SonarScanner version:"
-          sonar-scanner --version
+          echo "Node version:"
+          node --version
+          echo "NPM version:"
+          npm --version
 
-      - name: Check available npm scripts
+      - name: Run unit tests
         run: |
           cd repos/axios
-          npm run
+          npm run test:node
 
-      - name: Install coverage tools
+      - name: Generate coverage
         run: |
           cd repos/axios
-          npm install --save-dev jest jest-cli nyc
+          npm install --save-dev nyc
+          npx nyc --reporter=lcov npm run test:node
 
-      - name: Run tests with coverage
-        run: |
-          cd repos/axios
-          # Usa o script de test padrão e gera cobertura manualmente
-          npx nyc --reporter=lcov npm test
-
-      - name: Check if coverage was generated
-        run: |
-          cd repos/axios
-          ls -la
-          if [ -d "coverage" ]; then
-            echo "Coverage directory found:"
-            ls -la coverage/
-          else
-            echo "No coverage directory found, creating dummy coverage"
-            mkdir -p coverage
-            # Cria um arquivo lcov.info básico para evitar erros
-            echo "TN:" > coverage/lcov.info
-            echo "SF:src/index.js" >> coverage/lcov.info
-            echo "FN:1,test" >> coverage/lcov.info
-            echo "FNF:1" >> coverage/lcov.info
-            echo "FNH:1" >> coverage/lcov.info
-            echo "LF:10" >> coverage/lcov.info
-            echo "LH:8" >> coverage/lcov.info
-            echo "end_of_record" >> coverage/lcov.info
-          fi
-
-      - name: Run analysis and tests
+      - name: Run analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_URL: "https://sonarcloud.io"
