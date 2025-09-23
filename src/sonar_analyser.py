@@ -1,12 +1,15 @@
 import os
 import subprocess
+import sys
+
+SONAR_TOKEN = os.environ.get('SONAR_TOKEN')
+SONAR_URL = os.environ.get('SONAR_URL', 'http://localhost:9000')
+REPOS_DIR = 'repos'
+
 
 def analyze_repo(repo_path, repo_name):
     print(f"Analisando repositório: {repo_name}")
-    SONAR_TOKEN = os.environ.get('SONAR_TOKEN')
-    SONAR_URL = os.environ.get('SONAR_URL', 'http://localhost:9000')
     project_key = f"{repo_name}".replace('/', '_')
-    
     cmd = [
         "sonar-scanner",
         f"-Dsonar.projectKey={project_key}",
@@ -14,7 +17,6 @@ def analyze_repo(repo_path, repo_name):
         f"-Dsonar.host.url={SONAR_URL}",
         f"-Dsonar.login={SONAR_TOKEN}"
     ]
-    
     try:
         result = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True)
         print(result.stdout)

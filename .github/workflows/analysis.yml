@@ -36,9 +36,9 @@ jobs:
           echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
+        run: |
+          curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+          sudo apt-get install -y nodejs
 
       - name: Clone Axios Repository
         run: |
@@ -46,38 +46,31 @@ jobs:
           cd repos/axios
           npm install
 
-      - name: Build Axios project
-        run: |
-          cd repos/axios
-          npm run build
-
       - name: Install SonarScanner
         run: |
           curl -sSLo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
           unzip -o sonar-scanner.zip
           echo "${PWD}/sonar-scanner-5.0.1.3006-linux/bin" >> $GITHUB_PATH
 
-      - name: Verify environment
+      - name: Verify Java and SonarScanner
         run: |
           echo "Java version:"
           java -version
-          echo "Node version:"
-          node --version
-          echo "NPM version:"
-          npm --version
+          echo "JAVA_HOME: $JAVA_HOME"
+          echo "SonarScanner version:"
+          sonar-scanner --version
 
-      - name: Run unit tests
+      - name: Build project
         run: |
           cd repos/axios
-          npm run test:node
+          npm run build
 
-      - name: Generate coverage
+      - name: Run npm test with coverage
         run: |
           cd repos/axios
-          npm install --save-dev nyc
-          npx nyc --reporter=lcov npm run test:node
+          npm test -- --coverage
 
-      - name: Run analysis
+      - name: Run analysis and tests
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_URL: "https://sonarcloud.io"
