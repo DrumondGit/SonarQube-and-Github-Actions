@@ -1,6 +1,5 @@
 import os
 from sonar_analyzer import analyze_repo, get_sonar_metrics, check_project_exists
-from test_runner import run_npm_test, get_npm_test_metrics
 from report_generator import generate_simple_report, generate_metrics_summary
 from file_manager import save_results_to_csv, get_repositories_list
 
@@ -42,18 +41,7 @@ def main():
         else:
             print("❌ Análise SonarQube falhou")
         
-        # Testes NPM
-        print("Executando testes NPM...")
-        test_output = run_npm_test(repo_path)
-        if test_output:
-            npm_metrics = get_npm_test_metrics(test_output)
-            result.update(npm_metrics)
-            print("✅ Métricas de testes obtidas")
-        
-        sonar_results.append(result)
-        print(f"✅ Concluído: {repo}")
-        print(f"{'='*50}\n")
-    
+
     # Salva resultados e gera relatórios
     if sonar_results:
         save_results_to_csv(sonar_results)
