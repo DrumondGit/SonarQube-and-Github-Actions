@@ -11,24 +11,47 @@ def analyze_repo(repo_path, repo_name):
     project_key = f"{repo_name}".replace('/', '_')
     organization = os.environ.get('SONAR_ORGANIZATION', 'drumondgit')
     
-    # Configuração mais completa do SonarScanner
+    # Primeiro, verifica a estrutura do projeto
+    print("Verificando estrutura do projeto...")
+    project_structure = os.listdir(repo_path)
+    print(f"Conteúdo do diretório: {project_structure}")
+    
+    # Descobre quais diretórios contêm código fonte
+    source_dirs = []
+    possible_sources = ['lib', 'src', 'dist', 'build', 'js', 'javascript']
+    
+    for possible_dir in possible_sources:
+        if os.path.exists(os.path.join(repo_path, possible_dir)):
+            source_dirs.append(possible_dir)
+            print(f"✅ Diretório fonte encontrado: {possible_dir}")
+    
+    # Se não encontrar diretórios específicos, usa o diretório raiz
+    if not source_dirs:
+        print("ℹ️  Usando diretório raiz como fonte")
+        source_dirs = ['.']
+    else:
+        source_dirs = ['.']  # Vamos usar raiz + lib para o axios
+    
+    sources_param = ','.join(source_dirs)
+    
+    # Configuração do SonarScanner para o axios
     cmd = [
         "sonar-scanner",
         f"-Dsonar.projectKey={project_key}",
         f"-Dsonar.organization={organization}",
-        f"-Dsonar.sources=lib,src",  # Diretórios específicos do código
+        f"-Dsonar.sources=.",  # Usa diretório raiz que contém 'lib'
         f"-Dsonar.host.url={SONAR_URL}",
         f"-Dsonar.login={SONAR_TOKEN}",
         "-Dsonar.sourceEncoding=UTF-8",
         "-Dsonar.verbose=true",
-        "-Dsonar.scm.disabled=true"  # Desabilita SCM para repositórios clonados
+        "-Dsonar.scm.disabled=true",
+        "-Dsonar.exclusions=node_modules/**,test/**,**/*.test.js,**/*.spec.js"
     ]
     
-    # Adiciona configuração de cobertura se existir
-    lcov_path = os.path.join(repo_path, 'coverage', 'lcov.info')
-    if os.path.exists(lcov_path):
-        cmd.append(f"-Dsonar.javascript.lcov.reportPaths={lcov_path}")
-        print(f"Usando arquivo de cobertura: {lcov_path}")
+    # Verifica se é JavaScript/TypeScript project
+    package_json = os.path.join(repo_path, 'package.json')
+    if os.path.exists(package_json):
+        cmd.append("-Dsonar.lang.patterns.js=**/*.js")
     
     print(f"Comando SonarScanner: {' '.join(cmd)}")
     
@@ -43,12 +66,51 @@ def analyze_repo(repo_path, repo_name):
         
         if result.returncode != 0:
             print(f"❌ Erro ao analisar {repo_name} (código: {result.returncode})")
-            return None
+            
+            # Tenta análise alternativa com configuração mínima
+            return analyze_repo_fallback(repo_path, repo_name)
         else:
             print(f"✅ Análise concluída para {repo_name}")
             return project_key
     except Exception as e:
         print(f"❌ Falha ao analisar {repo_name}: {e}")
+        return analyze_repo_fallback(repo_path, repo_name)
+
+def analyze_repo_fallback(repo_path, repo_name):
+    """Análise alternativa com configuração mínima."""
+    print(f"Tentando análise alternativa para {repo_name}...")
+    
+    SONAR_TOKEN = os.environ.get('SONAR_TOKEN')
+    SONAR_URL = os.environ.get('SONAR_URL', 'https://sonarcloud.io')
+    project_key = f"{repo_name}".replace('/', '_')
+    organization = os.environ.get('SONAR_ORGANIZATION', 'drumondgit')
+    
+    # Configuração mínima e segura
+    cmd = [
+        "sonar-scanner",
+        f"-Dsonar.projectKey={project_key}",
+        f"-Dsonar.organization={organization}",
+        f"-Dsonar.sources=.",  # Apenas diretório raiz
+        f"-Dsonar.host.url={SONAR_URL}",
+        f"-Dsonar.login={SONAR_TOKEN}",
+        "-Dsonar.sourceEncoding=UTF-8",
+        "-Dsonar.scm.disabled=true",
+        "-Dsonar.exclusions=node_modules/**,test/**,**/*.test.js,**/*.spec.js,coverage/**,dist/**,build/**"
+    ]
+    
+    try:
+        result = subprocess.run(cmd, cwd=repo_path, capture_output=True, text=True)
+        print("=== SAÍDA DA ANÁLISE ALTERNATIVA ===")
+        print(result.stdout)
+        
+        if result.returncode == 0:
+            print(f"✅ Análise alternativa concluída para {repo_name}")
+            return project_key
+        else:
+            print(f"❌ Análise alternativa também falhou para {repo_name}")
+            return None
+    except Exception as e:
+        print(f"❌ Falha na análise alternativa: {e}")
         return None
 
 def get_sonar_metrics(project_key):
@@ -62,8 +124,8 @@ def get_sonar_metrics(project_key):
     
     print(f"Buscando métricas para projeto: {project_key}")
     
-    # Espera mais tempo para garantir que a análise foi processada
-    time.sleep(30)
+    # Espera para garantir que a análise foi processada
+    time.sleep(20)
     
     metrics = [
         'bugs', 'code_smells', 'vulnerabilities', 'coverage',
@@ -74,42 +136,28 @@ def get_sonar_metrics(project_key):
     
     try:
         url = f"{SONAR_URL}/api/measures/component"
-        params = {
-            'component': project_key, 
-            'metricKeys': ','.join(metrics)
-        }
+        params = {'component': project_key, 'metricKeys': ','.join(metrics)}
         headers = {'Authorization': f'Bearer {SONAR_TOKEN}'}
-        
-        print(f"Fazendo requisição para: {url}")
-        print(f"Parâmetros: {params}")
         
         response = requests.get(url, params=params, headers=headers, timeout=30)
         
-        print(f"Status code: {response.status_code}")
-        
         if response.status_code == 200:
             data = response.json()
-            print("Resposta da API recebida com sucesso")
             
             if 'component' in data and 'measures' in data['component']:
                 metrics_dict = {measure['metric']: measure['value'] 
                               for measure in data['component']['measures']}
-                print(f"Métricas coletadas: {metrics_dict}")
+                print(f"✅ Métricas coletadas: {len(metrics_dict)} itens")
                 return metrics_dict
             else:
-                print("❌ Estrutura de resposta inesperada")
-                print(f"Resposta: {data}")
+                print("ℹ️  Nenhuma métrica disponível (projeto pode não existir)")
                 return {}
         else:
-            print(f"❌ Erro na API: {response.status_code}")
-            print(f"Resposta: {response.text}")
+            print(f"ℹ️  Projeto {project_key} não encontrado ou sem métricas")
             return {}
             
-    except requests.exceptions.Timeout:
-        print("❌ Timeout na requisição da API")
-        return {}
     except Exception as e:
-        print(f"❌ Erro ao buscar métricas do SonarQube: {e}")
+        print(f"❌ Erro ao buscar métricas: {e}")
         return {}
 
 def check_project_exists(project_key):
