@@ -1,6 +1,5 @@
 import os
 from sonar_analyzer import analyze_repo, get_sonar_metrics, check_project_exists
-from test_runner import run_npm_test, get_npm_test_metrics
 from report_generator import generate_simple_report, generate_metrics_summary
 from file_manager import save_results_to_csv, get_repositories_list
 
@@ -46,14 +45,6 @@ def main():
                 'duplicated_lines_density': 0, 'security_hotspots': 0,
                 'reliability_rating': 0, 'security_rating': 0, 'sqale_rating': 0
             })
-        
-        # Testes NPM
-        test_output = run_npm_test(repo_path)
-        if test_output:
-            npm_metrics = get_npm_test_metrics(test_output)
-            result.update(npm_metrics)
-        else:
-            result.update({'test_coverage': 0, 'test_passed': 0, 'test_failed': 0})
         
         sonar_results.append(result)
         print(f"✅ Concluído: {repo}")
