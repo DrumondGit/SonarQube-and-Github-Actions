@@ -1,11 +1,11 @@
 import os
+from sonar_analyzer import analyze_repo, get_sonar_metrics, check_project_exists
+from test_runner import run_npm_test, get_npm_test_metrics
 from report_generator import generate_simple_report, generate_metrics_summary
 from file_manager import save_results_to_csv, get_repositories_list
-from sonar_analyzer import analyze_repo, get_sonar_metrics
-
 
 def main():
-    """Função principal simplificada."""
+    """Função principal com melhor debug."""
     repos = get_repositories_list('repos')
     if not repos:
         return
@@ -14,30 +14,61 @@ def main():
     
     for repo in repos:
         repo_path = os.path.join('repos', repo)
-        print(f"\n=== Processando {repo} ===")
+        print(f"\n{'='*50}")
+        print(f"PROCESSANDO: {repo}")
+        print(f"{'='*50}")
+        
+        # Verifica se o projeto já existe
+        project_key = f"{repo}".replace('/', '_')
+        print(f"Project key: {project_key}")
+        
+        if check_project_exists(project_key):
+            print(f"✅ Projeto {project_key} já existe no SonarCloud")
+        else:
+            print(f"⚠️ Projeto {project_key} não encontrado no SonarCloud")
         
         # Análise SonarQube
         project_key = analyze_repo(repo_path, repo)
         result = {"repo": repo}
         
         if project_key:
-            result.update(get_sonar_metrics(project_key))
+            print(f"Buscando métricas para {project_key}...")
+            metrics = get_sonar_metrics(project_key)
+            if metrics:
+                result.update(metrics)
+                print(f"✅ Métricas obtidas: {len(metrics)} itens")
+            else:
+                print("❌ Não foi possível obter métricas")
+        else:
+            print("❌ Análise SonarQube falhou")
+        
+        # Testes NPM
+        print("Executando testes NPM...")
+        test_output = run_npm_test(repo_path)
+        if test_output:
+            npm_metrics = get_npm_test_metrics(test_output)
+            result.update(npm_metrics)
+            print("✅ Métricas de testes obtidas")
         
         sonar_results.append(result)
-        print(f"=== Concluído {repo} ===\n")
+        print(f"✅ Concluído: {repo}")
+        print(f"{'='*50}\n")
     
     # Salva resultados e gera relatórios
-    save_results_to_csv(sonar_results)
-    
-    print("Gerando relatórios em PNG...")
-    generate_simple_report()
-    generate_metrics_summary()
-    
-    print("\n✅ Processo concluído!")
-    print("Arquivos gerados:")
-    print("- sonar_analysis_results.csv")
-    print("- sonar_report.png")
-    print("- sonar_summary.png")
+    if sonar_results:
+        save_results_to_csv(sonar_results)
+        
+        print("Gerando relatórios em PNG...")
+        generate_simple_report()
+        generate_metrics_summary()
+        
+        print("\n✅ Processo concluído!")
+        print("Arquivos gerados:")
+        print("- sonar_analysis_results.csv")
+        print("- sonar_report.png")
+        print("- sonar_summary.png")
+    else:
+        print("❌ Nenhum resultado para salvar")
 
 if __name__ == "__main__":
     main()

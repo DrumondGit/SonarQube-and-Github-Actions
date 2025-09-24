@@ -36,15 +36,16 @@ jobs:
           echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> $GITHUB_PATH
 
       - name: Install Node.js
-        run: |
-          curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-          sudo apt-get install -y nodejs
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
 
-      - name: Clone Axios Repository
+      - name: Clone and setup Axios Repository
         run: |
           git clone https://github.com/axios/axios.git repos/axios
           cd repos/axios
           npm install
+          npm run build
 
       - name: Install SonarScanner
         run: |
@@ -52,14 +53,30 @@ jobs:
           unzip -o sonar-scanner.zip
           echo "${PWD}/sonar-scanner-5.0.1.3006-linux/bin" >> $GITHUB_PATH
 
-      - name: Verify environment
+      - name: Verify SonarScanner
         run: |
-          echo "Java version:"
-          java -version
-          echo "Python version:"
-          python --version
+          sonar-scanner --version
 
-      - name: Run analysis and generate reports
+      - name: Run SonarQube analysis first
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          cd repos/axios
+          sonar-scanner \
+            -Dsonar.projectKey=axios \
+            -Dsonar.organization=drumondgit \
+            -Dsonar.sources=lib \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.login=$SONAR_TOKEN \
+            -Dsonar.sourceEncoding=UTF-8 \
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      - name: Wait for analysis to complete
+        run: |
+          echo "Aguardando processamento da análise no SonarCloud..."
+          sleep 30
+
+      - name: Run Python analysis and generate reports
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_URL: "https://sonarcloud.io"
