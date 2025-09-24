@@ -11,12 +11,10 @@ def analyze_repo(repo_path, repo_name):
     project_key = f"{repo_name}".replace('/', '_')
     organization = os.environ.get('SONAR_ORGANIZATION', 'drumondgit')
     
-    # Primeiro, verifica a estrutura do projeto
     print("Verificando estrutura do projeto...")
     project_structure = os.listdir(repo_path)
     print(f"Conteúdo do diretório: {project_structure}")
     
-    # Descobre quais diretórios contêm código fonte
     source_dirs = []
     possible_sources = ['lib', 'src', 'dist', 'build', 'js', 'javascript']
     
@@ -25,16 +23,14 @@ def analyze_repo(repo_path, repo_name):
             source_dirs.append(possible_dir)
             print(f"✅ Diretório fonte encontrado: {possible_dir}")
     
-    # Se não encontrar diretórios específicos, usa o diretório raiz
     if not source_dirs:
         print("ℹ️  Usando diretório raiz como fonte")
         source_dirs = ['.']
     else:
-        source_dirs = ['.']  # Vamos usar raiz + lib para o axios
+        source_dirs = ['.']
     
     sources_param = ','.join(source_dirs)
     
-    # Configuração do SonarScanner para o axios
     cmd = [
         "sonar-scanner",
         f"-Dsonar.projectKey={project_key}",
@@ -48,7 +44,6 @@ def analyze_repo(repo_path, repo_name):
         "-Dsonar.exclusions=node_modules/**,test/**,**/*.test.js,**/*.spec.js"
     ]
     
-    # Verifica se é JavaScript/TypeScript project
     package_json = os.path.join(repo_path, 'package.json')
     if os.path.exists(package_json):
         cmd.append("-Dsonar.lang.patterns.js=**/*.js")
@@ -67,7 +62,6 @@ def analyze_repo(repo_path, repo_name):
         if result.returncode != 0:
             print(f"❌ Erro ao analisar {repo_name} (código: {result.returncode})")
             
-            # Tenta análise alternativa com configuração mínima
             return analyze_repo_fallback(repo_path, repo_name)
         else:
             print(f"✅ Análise concluída para {repo_name}")
@@ -85,7 +79,6 @@ def analyze_repo_fallback(repo_path, repo_name):
     project_key = f"{repo_name}".replace('/', '_')
     organization = os.environ.get('SONAR_ORGANIZATION', 'drumondgit')
     
-    # Configuração mínima e segura
     cmd = [
         "sonar-scanner",
         f"-Dsonar.projectKey={project_key}",
@@ -124,7 +117,6 @@ def get_sonar_metrics(project_key):
     
     print(f"Buscando métricas para projeto: {project_key}")
     
-    # Espera para garantir que a análise foi processada
     time.sleep(20)
     
     metrics = [

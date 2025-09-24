@@ -7,7 +7,6 @@ def main():
     """Função principal com tratamento robusto de erros."""
     repos = get_repositories_list('repos')
     if not repos:
-        # Cria resultados dummy para teste
         dummy_results = [{
             'repo': 'axios',
             'bugs': 0, 'vulnerabilities': 0, 'code_smells': 0,
@@ -38,7 +37,6 @@ def main():
             metrics = get_sonar_metrics(project_key)
             result.update(metrics)
         else:
-            # Métricas dummy se a análise falhar
             result.update({
                 'bugs': 0, 'vulnerabilities': 0, 'code_smells': 0,
                 'coverage': 0, 'ncloc': 0, 'complexity': 0,
